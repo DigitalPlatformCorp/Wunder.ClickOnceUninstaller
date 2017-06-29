@@ -1,54 +1,31 @@
-An uninstaller for ClickOnce applications
+Modified uninstaller for ClickOnce applications with duplicate public keys
 ===========================
 
-### Why?
+### This is a Fork
 
-Apparently, ClickOnce installations can't be removed silently. The ClickOnce uninstaller always shows a "Maintainance" dialog, requiring user interaction. 
+See [this thread](https://github.com/6wunderkinder/Wunder.ClickOnceUninstaller/issues/5). I was
+attempting to use 6wunderkinder's ClickOnceUninstaller in a situation where multiple editions of
+the same app had the same public key but different installer (.application) names and different
+executable names. The original code would uninstall all of them and leave broken shortcuts
+for some of them. 
 
-For [Wunderlist](http://www.6wunderkinder.com/wunderlist) 2.1 we wanted to switch from a ClickOnce deployment to a Windows Installer package using the [WiX Toolset](http://wixtoolset.org/). We wanted this switch to be integrated into our new installer, invisible to the user.
+This fork is a hacky attempt to fix this by filtering the registry keys using the installer
+name and executable name. I believe it does correctly uninstall only the intended edition
+of the app now.
 
-### What?
+I also added a new class, RemovePin, which tries to remove user pins of the app in the task
+bar and start menu. The reason for doing this is that with a ClickOnce app, the pins point
+to the .application file, so clicking them will reinstall the ClickOnce version. I wanted
+to uninstall it because I'm switching to a different installer, so this was a bad thing.
+It does break the pins but I couldn't find a fully reliable way to remove them entirely.
+In the end I decided to use an ininstall method based on 
+[this reinstaller](https://code.google.com/archive/p/clickonce-application-reinstaller-api/)
+instead. 
 
-The Wunder.ClickOnceUninstaller uninstaller imitates the actions performed by the ClickOnce uninstaller, removing files, registry entries, start menu and desktop links for a given application. 
-
-It automatically resolves dependencies between installed components and removes all of the applications's components which are not required by other installed ClickOnce applications.
-
-The uninstaller can be used programmatically as .NET library, through a command line interface and as custom action for a WiX setup package. 
-
-The included custom action for WiX is based on the .NET Framework 3.0 which is already shipped with Windows Vista or higher. 
-
-### How?
-
-##### .NET
-
-    var uninstallInfo = UninstallInfo.Find("Application Name");
-    if (uninstallInfo != null)
-    {
-        var uninstaller = new Uninstaller();
-        uninstaller.Uninstall(uninstallInfo);
-    }
-
-##### Command-line
-
-    ClickOnceUninstaller.exe "Application Name"
-
-##### WiX
-
-    <Property Id="CLICKONCEAPPNAME" Value="Application Name" />
-    
-    <CustomAction Id="UninstallClickOnce"
-                  BinaryKey="ClickOnceUninstaller"
-                  DllEntry="UninstallClickOnce"
-                  Return="ignore" />
-
-    <CustomAction Id="QuitRunningInstance"
-                  BinaryKey="WunderlistActions"
-                  DllEntry="QuitRunningInstance"
-                  Return="check" />
-
-    <InstallExecuteSequence>
-      <Custom Action="UninstallClickOnce" Before="InstallFinalize">NOT Installed</Custom>
-    </InstallExecuteSequence>
+This code is as-is, use at your own risk. I am not a registry expert and cannot promise this
+does the right thing. If you're not in the special situation of having multiple editions of
+the same program installed simultaneously with the same public key, I refer you instead to
+[the origin of this fork](https://github.com/6wunderkinder/Wunder.ClickOnceUninstaller).
 
 ## License
 

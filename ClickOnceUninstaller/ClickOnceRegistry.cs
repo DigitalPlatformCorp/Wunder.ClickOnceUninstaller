@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using Microsoft.Win32;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Microsoft.Win32;
 
 namespace Wunder.ClickOnceUninstaller
 {
-    public class ClickOnceRegistry
+	public class ClickOnceRegistry
     {
         public const string ComponentsRegistryPath = @"Software\Classes\Software\Microsoft\Windows\CurrentVersion\Deployment\SideBySide\2.0\Components";
         public const string MarksRegistryPath = @"Software\Classes\Software\Microsoft\Windows\CurrentVersion\Deployment\SideBySide\2.0\Marks";
@@ -30,12 +30,6 @@ namespace Wunder.ClickOnceUninstaller
 
                 var component = new Component { Key = keyName };
                 Components.Add(component);
-
-                component.Dependencies = new List<string>();
-                foreach (var dependencyName in componentKey.GetSubKeyNames().Where(n => n != "Files"))
-                {
-                    component.Dependencies.Add(dependencyName);
-                }
             }
         }
 
@@ -80,22 +74,68 @@ namespace Wunder.ClickOnceUninstaller
         {
             public string Key { get; set; }
 
-            public override string ToString()
+			public string Identity
+			{
+				get
+				{
+					if (_identity == null)
+					{
+						_identity = string.Empty;
+						var key = Registry.CurrentUser.OpenSubKey(ComponentsRegistryPath + "\\" + Key);
+						if (key.GetValueNames().Contains("identity"))
+						{
+							var value = key.GetValue("identity") as byte[];
+							try
+							{
+								_identity = Encoding.ASCII.GetString(value);
+							}
+							catch { }
+						}
+					}
+
+					return _identity;
+				}
+				set
+				{
+					_identity = value;
+				}
+			}
+
+			public override string ToString()
             {
                 return Key ?? base.ToString();
             }
+
+			private string _identity = null;
         }
 
         public class Component : RegistryKey
         {
-            public List<string> Dependencies { get; set; }
+            public IEnumerable<Component> Dependencies
+			{
+				get
+				{
+					if (_deps == null)
+					{
+						_deps = new List<Component>();
+						var key = Registry.CurrentUser.OpenSubKey(ComponentsRegistryPath + "\\" + Key);
+
+						foreach (var dependencyName in key.GetSubKeyNames().Where(n => n != "Files"))
+						{
+							_deps.Add(new Component() { Key = dependencyName });
+						}
+					}
+
+					return _deps;
+				}
+			}
+
+			private List<Component> _deps = null;
         }
 
         public class Mark : RegistryKey
         {
             public string AppId { get; set; }
-
-            public string Identity { get; set; }
 
             public List<Implication> Implications { get; set; }
         }

@@ -1,10 +1,10 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Linq;
-using Microsoft.Win32;
 
 namespace Wunder.ClickOnceUninstaller
 {
-    public class UninstallInfo
+	public class UninstallInfo
     {
         public const string UninstallRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall";
 
@@ -25,7 +25,8 @@ namespace Wunder.ClickOnceUninstaller
                         return new UninstallInfo
                                    {
                                        Key = app,
-                                       UninstallString = sub.GetValue("UninstallString") as string,
+									   UninstallString = sub.GetValue("UninstallString") as string,
+                                       DisplayName = sub.GetValue("DisplayName") as string,
                                        ShortcutFolderName = sub.GetValue("ShortcutFolderName") as string,
                                        ShortcutSuiteName = sub.GetValue("ShortcutSuiteName") as string,
                                        ShortcutFileName = sub.GetValue("ShortcutFileName") as string,
@@ -41,6 +42,8 @@ namespace Wunder.ClickOnceUninstaller
 
         public string Key { get; set; }
 
+		public string DisplayName { get; set; }
+
         public string UninstallString { get; private set; }
 
         public string ShortcutFolderName { get; set; }
@@ -55,9 +58,32 @@ namespace Wunder.ClickOnceUninstaller
 
         public string GetPublicKeyToken()
         {
-            var token = UninstallString.Split(',').First(s => s.Trim().StartsWith("PublicKeyToken=")).Substring(16);
+            var token = UninstallString.Split(',').Select(s => s.Trim()).First(s => s.StartsWith("PublicKeyToken="));
+			token = token.Substring(token.Length - 16);
             if (token.Length != 16) throw new ArgumentException();
             return token;
         }
-    }
+
+		public string GetInstallerName()
+		{
+			var token = UninstallString.Split(' ', ',').Select(s => s.Trim()).FirstOrDefault(s => s.EndsWith(".application"));
+			if (null == token)
+			{
+				throw new ArgumentException();
+			}
+
+			return token;
+		}
+
+		public string GetExecutableName()
+		{
+			// Guess the executable name from the installer name. This assumes the names
+			// are the same except the extension. This also assumes different editions
+			// of your program have different installer names, even if the keys are the same.
+			// If you can't get the exe name this way, you can change the program to pass
+			// it in on the command line instead, but that will still require a different
+			// name for each edition to prevent them all from being removed.
+			return GetInstallerName().Replace(".application", ".exe");
+		}
+	}
 }

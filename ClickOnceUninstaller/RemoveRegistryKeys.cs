@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Win32;
+using System.Text;
 
 namespace Wunder.ClickOnceUninstaller
 {
-    public class RemoveRegistryKeys : IUninstallStep
+	public class RemoveRegistryKeys : IUninstallStep
     {
         public const string PackageMetadataRegistryPath = @"Software\Classes\Software\Microsoft\Windows\CurrentVersion\Deployment\SideBySide\2.0\PackageMetadata";
         public const string ApplicationsRegistryPath = @"Software\Classes\Software\Microsoft\Windows\CurrentVersion\Deployment\SideBySide\2.0\StateManager\Applications";
@@ -62,29 +63,59 @@ namespace Wunder.ClickOnceUninstaller
             }
 
             var token = _uninstallInfo.GetPublicKeyToken();
+			var installer = _uninstallInfo.GetInstallerName();
+			var exeName = _uninstallInfo.GetExecutableName();
 
+			var metadataKeysRemoved = new List<string>();
             var packageMetadata = Registry.CurrentUser.OpenSubKey(PackageMetadataRegistryPath);
             foreach (var keyName in packageMetadata.GetSubKeyNames())
             {
-                DeleteMatchingSubKeys(PackageMetadataRegistryPath + "\\" + keyName, token);
+                metadataKeysRemoved.AddRange(DeleteMatchingSubKeys(PackageMetadataRegistryPath + "\\" + keyName, token, "appid", installer));
             }
 
-            DeleteMatchingSubKeys(ApplicationsRegistryPath, token);
-            DeleteMatchingSubKeys(FamiliesRegistryPath, token);
-            DeleteMatchingSubKeys(VisibilityRegistryPath, token);
-        }
+            DeleteMatchingSubKeys(ApplicationsRegistryPath, token, "identity", installer);
+            DeleteMatchingSubKeys(FamiliesRegistryPath, token, null, null, metadataKeysRemoved);
+            DeleteMatchingSubKeys(VisibilityRegistryPath, token, "identity", exeName);
+			DeleteMatchingSubKeys(VisibilityRegistryPath, token, "identity", installer);
+		}
 
-        private void DeleteMatchingSubKeys(string registryPath, string token)
+		private IEnumerable<string> DeleteMatchingSubKeys(string registryPath, string token, string valueName, string valueMatch, IEnumerable<string> keyNameFilter = null)
         {
+			var result = new List<string>();
             var key = Registry.CurrentUser.OpenSubKey(registryPath, true);
             _disposables.Add(key);
             foreach (var subKeyName in key.GetSubKeyNames())
             {
-                if (subKeyName.Contains(token))
+                if (subKeyName.Contains(token) 
+				 && ((keyNameFilter == null) || keyNameFilter.Any(k => subKeyName.Contains(k))))
                 {
-                    _keysToRemove.Add(new RegistryMarker(key, subKeyName));
+					var id = string.Empty;
+
+					if (valueName != null)
+					{
+						var subKey = key.OpenSubKey(subKeyName);
+						_disposables.Add(subKey);
+
+						if (subKey.GetValueNames().Contains(valueName))
+						{
+							var val = subKey.GetValue(valueName) as byte[];
+							try
+							{
+								id = Encoding.ASCII.GetString(val);
+							}
+							catch { }
+						}
+					}
+
+					if ((valueName == null) || id.Contains(valueMatch))
+					{
+						_keysToRemove.Add(new RegistryMarker(key, subKeyName));
+						result.Add(subKeyName);
+					}
                 }
             }
+
+			return result;
         }
 
         public void PrintDebugInformation()

@@ -9,7 +9,7 @@ namespace Wunder.ClickOnceUninstaller
         {
             if (args.Length != 1 || string.IsNullOrEmpty(args[0]))
             {
-                Console.WriteLine("Usage:\nClickOnceUninstaller appName");
+                Console.WriteLine("Usage:\nClickOnceUninstaller 'App full name'");
                 return;
             }
 
